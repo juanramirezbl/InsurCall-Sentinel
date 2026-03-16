@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 from typing import Any, Dict
@@ -5,11 +6,16 @@ from typing import Any, Dict
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile, status
 from openai import OpenAI
+from pydantic import BaseModel
 
 load_dotenv()
 
 app = FastAPI()
 client = OpenAI()
+
+
+class AnalyzeRequest(BaseModel):
+    transcription: str
 
 
 @app.get("/")
@@ -70,3 +76,49 @@ async def transcribe_audio(file: UploadFile = File(...)) -> Dict[str, Any]:
                 os.remove(temp_path)
         except OSError:
             pass
+
+
+@app.post("/analyze")
+async def analyze_transcription(payload: AnalyzeRequest) -> Dict[str, Any]:
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an expert insurance fraud detection analyst. "
+                        "Analyze the following transcription of a customer phone call. "
+                        "Evaluate the sentiment, look for signs of vocal stress (based on the words used, hesitations, etc.), "
+                        "and identify potential fraud indicators. You must reply strictly in JSON format with the following keys: "
+                        "sentiment (string), stress_level (Low/Medium/High), fraud_probability_score (number from 0 to 100), "
+                        "and reasoning (brief string explaining why)."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": payload.transcription,
+                },
+            ],
+        )
+    except Exception as exc:  # pragma: no cover - external dependency
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Analysis service error: {exc}",
+        ) from exc
+
+    try:
+        content = completion.choices[0].message.content if completion.choices else None
+        if not content:
+            raise ValueError("Empty response from analysis service.")
+
+        parsed = json.loads(content)
+        if not isinstance(parsed, dict):
+            raise ValueError("Response is not a JSON object.")
+
+        return parsed
+    except (ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to parse analysis response: {exc}",
+        ) from exc
