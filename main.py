@@ -5,4 +5,4 @@ app = FastAPI()
 
 @app.get("/")
 def read_root():
-    return {"status": "InsurCall Sentinel activo y escuchando"}
+    return {"status": "InsurCall Sentinel listening"}

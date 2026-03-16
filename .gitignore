@@ -1,0 +1,21 @@
+# Environments and Secrets
+.env
+venv/
+env/
+.venv/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+
+# IDEs and Editors
+.vscode/
+.cursor/
+.idea/
